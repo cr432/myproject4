@@ -1,30 +1,29 @@
-from calculator import Calculator
+# main.py
 from decimal import Decimal, InvalidOperation
-
-class AddCommand:
-    def execute(self, a, b):
-        return a + b
-
-class SubtractCommand:
-    def execute(self, a, b):
-        return a - b
-
-class MultiplyCommand:
-    def execute(self, a, b):
-        return a * b
-
-class DivideCommand:
-    def execute(self, a, b):
-        if b != 0:
-            return a / b
-        else:
-            raise ZeroDivisionError("Error: Division by zero.")
-
 from calculator import Calculator
-from decimal import Decimal, InvalidOperation
+from plugins.plugin_interface import CommandPlugin
+from importlib import import_module
+import os
+import inspect
+
+def load_plugins():
+    plugins = []
+
+    # Load plugins from the 'plugins' directory
+    plugins_directory = os.path.join(os.path.dirname(__file__), 'plugins')
+    for file_name in os.listdir(plugins_directory):
+        if file_name.endswith('_plugin.py'):
+            module_name = file_name[:-3]  # Remove '.py' extension
+            module = import_module(f'plugins.{module_name}')
+            for name, obj in inspect.getmembers(module):
+                if inspect.isclass(obj) and issubclass(obj, CommandPlugin) and obj != CommandPlugin:
+                    plugins.append(obj())
+
+    return plugins
 
 def main():
     calculator = Calculator()
+    plugins = load_plugins()
 
     while True:
         command = input("Enter command (add/subtract/multiply/divide/menu/exit): ").lower()
@@ -42,17 +41,14 @@ def main():
             try:
                 a_decimal, b_decimal = map(Decimal, [a, b])
 
-                # Dynamically call the corresponding method based on user input
-                if command == 'add':
-                    result = calculator.add(a_decimal, b_decimal)
-                elif command == 'subtract':
-                    result = calculator.subtract(a_decimal, b_decimal)
-                elif command == 'multiply':
-                    result = calculator.multiply(a_decimal, b_decimal)
-                elif command == 'divide':
-                    result = calculator.divide(a_decimal, b_decimal)
-
-                print(f"The result is: {result}")
+                # Dynamically call the corresponding plugin based on user input
+                for plugin in plugins:
+                    if command == plugin.__class__.__name__.lower():
+                        result = plugin.execute(a_decimal, b_decimal)
+                        print(f"The result is: {result}")
+                        break
+                else:
+                    print(f"Unknown command: {command}")
 
             except InvalidOperation:
                 print(f"Invalid number input: {a} or {b} is not a valid number.")

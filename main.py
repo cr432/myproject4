@@ -1,10 +1,10 @@
-# main.py
 from decimal import Decimal, InvalidOperation
 from calculator import Calculator
 from plugins.plugin_interface import CommandPlugin
 from importlib import import_module
 import os
 import inspect
+from multiprocessing import Process, Manager
 
 def load_plugins():
     plugins = []
@@ -20,6 +20,13 @@ def load_plugins():
                     plugins.append(obj())
 
     return plugins
+
+def execute_command(plugin, a, b, results):
+    try:
+        result = plugin.execute(a, b)
+        results[plugin.__class__.__name__.lower()] = result
+    except Exception as e:
+        results[plugin.__class__.__name__.lower()] = str(e)
 
 def main():
     calculator = Calculator()
@@ -44,8 +51,20 @@ def main():
                 # Dynamically call the corresponding plugin based on user input
                 for plugin in plugins:
                     if command == plugin.__class__.__name__.lower():
-                        result = plugin.execute(a_decimal, b_decimal)
-                        print(f"The result is: {result}")
+                        results = Manager().dict()
+                        processes = []
+
+                        for plugin in plugins:
+                            p = Process(target=execute_command, args=(plugin, a_decimal, b_decimal, results))
+                            processes.append(p)
+                            p.start()
+
+                        for p in processes:
+                            p.join()
+
+                        for plugin_name, result in results.items():
+                            print(f"The result of {plugin_name} is: {result}")
+
                         break
                 else:
                     print(f"Unknown command: {command}")
